@@ -1,0 +1,35 @@
+# Small DLLM config (~125M params)
+# Needs a decent GPU (3090/4090/A100)
+
+model:
+  d_model: 768
+  n_heads: 12
+  n_layers: 12
+  d_ff: 3072
+  dropout: 0.1
+
+data:
+  dataset: "openwebtext"
+  subset: null
+  text_column: "text"
+  max_length: 512
+  batch_size: 8
+  num_workers: 4
+  # max_samples: 100000  # Uncomment to limit data for faster testing
+
+training:
+  total_steps: 100000
+  lr: 1e-4
+  weight_decay: 0.01
+  warmup_steps: 2000
+  gradient_accumulation_steps: 4
+  use_amp: true
+  log_interval: 100
+  save_interval: 5000
+  eval_interval: 1000
+
+diffusion:
+  schedule: "cosine"
+
+tokenizer: "gpt2"
+output_dir: "checkpoints/small"
