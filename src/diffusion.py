@@ -221,11 +221,11 @@ def sample(
         confidence = torch.where(is_masked, confidence, torch.tensor(-1.0, device=device))
         
         # Determine how many to unmask this step
-        # More aggressive unmasking early, slower refinement later
-        progress = 1 - t.item()
+        # Linear schedule: unmask roughly (total_masked / steps) per step
         n_masked = is_masked.sum(dim=-1).float()
-        target_unmasked = (progress * seq_len)
-        n_to_unmask = (target_unmasked - (seq_len - n_masked)).clamp(min=1)
+        # Calculate based on remaining masked positions and remaining steps
+        remaining_steps = max(1, steps - step_idx)
+        n_to_unmask = (n_masked / remaining_steps).clamp(min=1)
         
         # Unmask highest confidence positions
         for b in range(batch_size):

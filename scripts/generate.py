@@ -187,6 +187,7 @@ def main():
     parser.add_argument("--top-p", type=float, default=None, help="Nucleus sampling threshold")
     parser.add_argument("--device", type=str, default="cuda", help="Device (cuda/cpu)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed")
+    parser.add_argument("--debug", action="store_true", help="Show raw token ids")
     args = parser.parse_args()
     
     if args.seed is not None:
@@ -220,6 +221,23 @@ def main():
             args.prompt, args.length, args.steps,
             args.temperature, args.top_k, args.top_p, args.device
         )
+        if args.debug:
+            # Re-run to get raw tokens
+            prompt_tokens = tokenizer.encode(args.prompt, return_tensors="pt").to(args.device)
+            prompt_len = prompt_tokens.shape[1]
+            full_tokens = torch.full((1, args.length), mask_token_id, device=args.device)
+            full_tokens[:, :prompt_len] = prompt_tokens
+            prompt_mask = torch.zeros((1, args.length), dtype=torch.bool, device=args.device)
+            prompt_mask[:, :prompt_len] = True
+            
+            tokens = sample(
+                model=model, seq_len=args.length, mask_token_id=mask_token_id,
+                batch_size=1, steps=args.steps, temperature=args.temperature,
+                top_k=args.top_k, top_p=args.top_p, device=args.device,
+                prompt_tokens=full_tokens, prompt_mask=prompt_mask,
+            )
+            print(f"Raw token ids: {tokens[0].tolist()[:20]}...")
+            print(f"Mask token id: {mask_token_id}")
         print(text)
         
     else:
