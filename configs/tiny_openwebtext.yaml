@@ -1,5 +1,5 @@
 # Tiny DLLM config (~25M params)
-# Good for testing on any GPU or even CPU
+# OpenWebText version for real diffusion learning
 
 model:
   d_model: 256
@@ -9,26 +9,25 @@ model:
   dropout: 0.1
 
 data:
-  dataset: "wikitext"
-  subset: "wikitext-2-raw-v1"
+  dataset: "openwebtext"
   text_column: "text"
   max_length: 256
-  batch_size: 16
+  batch_size: 12          # Slightly lower for safety on 12GB
   num_workers: 4
 
 training:
-  total_steps: 10000
+  total_steps: 120000     # You need more for diffusion
   lr: 3e-4
   weight_decay: 0.01
-  warmup_steps: 500
+  warmup_steps: 1000      # Slightly longer warmup for bigger data
   gradient_accumulation_steps: 1
   use_amp: true
   log_interval: 100
-  save_interval: 2000
-  eval_interval: 500
+  save_interval: 5000
+  eval_interval: 1000
 
 diffusion:
   schedule: "cosine"
 
 tokenizer: "gpt2"
-output_dir: "checkpoints/tiny"
+output_dir: "checkpoints/tiny_owt"

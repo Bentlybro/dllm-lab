@@ -1,0 +1,35 @@
+# OpenWebText Diffusion LLM (~95M params)
+# Good balance for RTX 3060 12GB
+
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers: 8
+  d_ff: 2048
+  dropout: 0.1
+
+data:
+  dataset: "openwebtext"
+  subset: null
+  text_column: "text"
+  max_length: 256
+  batch_size: 8          # lower for VRAM safety
+  num_workers: 4
+
+training:
+  total_steps: 50000
+  lr: 3e-4
+  weight_decay: 0.01
+  warmup_steps: 2000
+  gradient_accumulation_steps: 2   # effective batch = 16
+  use_amp: true
+  log_interval: 100
+  save_interval: 2000
+  eval_interval: 1000
+
+diffusion:
+  schedule: "cosine"
+  num_steps: 8           # keep small for stability
+
+tokenizer: "gpt2"
+output_dir: "checkpoints/openwebtext_small"
