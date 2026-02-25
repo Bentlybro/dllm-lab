@@ -1,14 +1,5 @@
-# Core
-torch>=2.0.0
 transformers>=4.30.0
 datasets>=2.14.0
-
-# Training
 pyyaml>=6.0
 tqdm>=4.65.0
-
-# Optional: faster tokenizers
 tokenizers>=0.13.0
-
-# Optional: wandb logging
-# wandb>=0.15.0
