@@ -49,14 +49,12 @@ class TextDataset(Dataset):
                 subset, 
                 split=split,
                 cache_dir=cache_dir,
-                trust_remote_code=True,
             )
         else:
             self.dataset = load_dataset(
                 dataset_name, 
                 split=split,
                 cache_dir=cache_dir,
-                trust_remote_code=True,
             )
         
         # Limit samples if specified

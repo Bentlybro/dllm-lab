@@ -119,10 +119,12 @@ def train(config: dict, resume_path: str = None):
     
     # Optimizer
     train_config = config.get("training", {})
+    lr = float(train_config.get("lr", 1e-4))
+    weight_decay = float(train_config.get("weight_decay", 0.01))
     optimizer = AdamW(
         model.parameters(),
-        lr=train_config.get("lr", 1e-4),
-        weight_decay=train_config.get("weight_decay", 0.01),
+        lr=lr,
+        weight_decay=weight_decay,
         betas=(0.9, 0.98),
     )
     
@@ -199,7 +201,7 @@ def train(config: dict, resume_path: str = None):
                 if step < warmup_steps:
                     lr_scale = min(1.0, (step + 1) / warmup_steps)
                     for pg in optimizer.param_groups:
-                        pg["lr"] = train_config.get("lr", 1e-4) * lr_scale
+                        pg["lr"] = lr * lr_scale
                 else:
                     scheduler.step()
             
