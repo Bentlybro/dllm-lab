@@ -198,6 +198,8 @@ def train(config_path: str, resume: str = None):
     epoch = 0
     running_loss = 0.0
     running_metrics = {}
+    nan_count = 0
+    max_nan_streak = 10  # halt if 10 NaNs in a row
     
     pbar = tqdm(total=total_steps, initial=start_step, desc=f"Epoch {epoch+1}")
     
@@ -232,6 +234,26 @@ def train(config_path: str, resume: str = None):
                     )
                 
                 loss = loss / grad_accum
+            
+            # NaN detection - skip batch and reset gradients
+            if torch.isnan(loss) or torch.isinf(loss):
+                nan_count += 1
+                logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
+                optimizer.zero_grad()
+                scaler.update()  # reset scaler state
+                
+                if nan_count >= max_nan_streak:
+                    logger.error(f"Hit {max_nan_streak} NaN losses in a row. Saving emergency checkpoint and halting.")
+                    save_checkpoint(
+                        model, optimizer, scheduler, scaler,
+                        step, 0.0, config,
+                        output_dir, f"emergency_step_{step}"
+                    )
+                    raise RuntimeError(f"Training halted: {max_nan_streak} consecutive NaN losses")
+                
+                continue  # skip this batch entirely
+            
+            nan_count = 0  # reset streak on good batch
             
             # Backward
             scaler.scale(loss).backward()
@@ -283,6 +305,13 @@ def train(config_path: str, resume: str = None):
                     output_dir, "latest"
                 )
                 logger.info(f"Saved checkpoint to {output_dir}/step_{step}.pt")
+                # Clear CUDA cache after checkpoint to prevent fragmentation
+                if device == "cuda":
+                    torch.cuda.empty_cache()
+            
+            # Periodic cache clearing every 1000 steps
+            if step % 1000 == 0 and device == "cuda":
+                torch.cuda.empty_cache()
     
     pbar.close()
     
