@@ -1,0 +1,37 @@
+# Continuous Diffusion LLM (Mercury-style)
+# Uses Gaussian noise in embedding space, ε-prediction, cosine schedule
+
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers: 8
+  d_ff: 2048
+  dropout: 0.1
+
+data:
+  dataset: "openwebtext"
+  subset: null
+  text_column: "text"
+  max_length: 256
+  batch_size: 8
+  num_workers: 4
+
+training:
+  total_steps: 200000
+  lr: 1e-4
+  weight_decay: 0.01
+  warmup_steps: 2000
+  gradient_accumulation_steps: 2
+  use_amp: true
+  log_interval: 100
+  save_interval: 10000
+
+diffusion:
+  num_train_timesteps: 1000    # Training uses 1000 timesteps
+  num_inference_steps: 8       # Inference uses only 8 steps!
+  schedule: "cosine"
+  schedule_offset: 0.008       # Small offset for cosine schedule
+  cfg_dropout: 0.1             # 10% conditioning dropout for CFG
+
+tokenizer: "gpt2"
+output_dir: "checkpoints/continuous"
