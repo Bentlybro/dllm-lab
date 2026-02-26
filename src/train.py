@@ -3,6 +3,7 @@ Training script for Diffusion LLMs.
 """
 
 import os
+import math
 import yaml
 import argparse
 import logging
@@ -182,9 +183,10 @@ def train(config: dict, resume_path: str = None):
 
             if step % log_interval == 0:
                 avg_loss = running_loss / log_interval * grad_accum
+                ppl = math.exp(min(avg_loss, 20))  # cap to avoid overflow
                 lr = optimizer.param_groups[0]["lr"]
-                pbar.set_postfix(loss=f"{avg_loss:.4f}", lr=f"{lr:.2e}")
-                logger.info(f"Step {step} | Loss: {avg_loss:.4f} | LR: {lr:.2e}")
+                pbar.set_postfix(loss=f"{avg_loss:.4f}", ppl=f"{ppl:.1f}", lr=f"{lr:.2e}")
+                logger.info(f"Step {step} | Loss: {avg_loss:.4f} | PPL: {ppl:.1f} | LR: {lr:.2e}")
                 running_loss = 0.0
 
             if step % save_interval == 0:
