@@ -139,12 +139,11 @@ def train(config_path: str, resume: str = None):
         use_loss_fn = False
     
     # Dataloader
+    data_config = config["data"].copy()
+    data_config["batch_size"] = config["training"]["batch_size"]
     dataloader = create_dataloader(
-        dataset_name=config["data"]["dataset"],
+        config=data_config,
         tokenizer=tokenizer,
-        max_length=config["data"]["max_length"],
-        batch_size=config["training"]["batch_size"],
-        num_workers=config["data"].get("num_workers", 4),
         split=config["data"].get("split", "train"),
     )
     
