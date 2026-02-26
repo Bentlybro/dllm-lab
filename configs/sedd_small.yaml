@@ -32,4 +32,4 @@ training:
   max_grad_norm: 1.0
   mixed_precision: true
   log_every: 100
-  save_every: 10000
+  save_every: 2000
