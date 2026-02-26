@@ -123,6 +123,12 @@ def train(config_path: str, resume: str = None):
     model = create_model(config["model"]).to(device)
     logger.info(f"Model parameters: {count_parameters(model):,}")
     
+    # Compile model for faster training (PyTorch 2.0+)
+    if config["training"].get("compile", True) and hasattr(torch, "compile"):
+        logger.info("Compiling model with torch.compile()...")
+        model = torch.compile(model, mode="reduce-overhead")
+        logger.info("Model compiled!")
+    
     # Create SEDD diffusion
     diffusion = SEDDDiffusion(
         mask_token_id=mask_token_id,
