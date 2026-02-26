@@ -1,0 +1,5 @@
+diffusion_env\Scripts\activate
+
+python scripts/generate_sedd.py --checkpoint checkpoints/sedd/step_96000.pt --prompt "The meaning of life is" --length 128 --steps 64
+
+python src/train_sedd.py --config configs/sedd_small.yaml --resume checkpoints/sedd/step_96000.pt
