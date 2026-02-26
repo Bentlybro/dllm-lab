@@ -65,6 +65,7 @@ def generate_unconditional(
         top_k=top_k,
         top_p=top_p,
         device=device,
+        eos_token_id=tokenizer.eos_token_id,
     )
     
     texts = []
@@ -119,6 +120,7 @@ def generate_with_prompt(
         device=device,
         prompt_tokens=full_tokens,
         prompt_mask=prompt_mask,
+        eos_token_id=tokenizer.eos_token_id,
     )
     
     return tokenizer.decode(tokens[0], skip_special_tokens=True)
@@ -169,6 +171,7 @@ def generate_infill(
         device=device,
         prompt_tokens=tokens,
         prompt_mask=prompt_mask,
+        eos_token_id=tokenizer.eos_token_id,
     )
     
     return tokenizer.decode(result[0], skip_special_tokens=True)

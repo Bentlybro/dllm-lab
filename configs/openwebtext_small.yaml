@@ -29,7 +29,7 @@ training:
 
 diffusion:
   schedule: "cosine"
-  num_steps: 8           # keep small for stability
+  max_mask_ratio: 0.95   # max fraction of tokens to mask (0.8-0.95 recommended)
 
 tokenizer: "gpt2"
 output_dir: "checkpoints/openwebtext_small"

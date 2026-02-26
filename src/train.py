@@ -133,7 +133,14 @@ def train(config: dict, resume_path: str = None):
     log_interval = train_config.get("log_interval", 100)
     save_interval = train_config.get("save_interval", 5000)
 
-    schedule = config.get("diffusion", {}).get("schedule", "linear")
+    # Diffusion config
+    diffusion_config = config.get("diffusion", {})
+    schedule = diffusion_config.get("schedule", "linear")
+    max_mask_ratio = float(diffusion_config.get("max_mask_ratio", 0.95))
+    
+    # Get special token IDs
+    eos_token_id = tokenizer.eos_token_id
+    pad_token_id = tokenizer.pad_token_id
 
     logger.info("Starting training...")
     logger.info(f"  Total steps: {total_steps:,}")
@@ -153,14 +160,29 @@ def train(config: dict, resume_path: str = None):
 
         for batch in pbar:
             tokens = batch["input_ids"].to(device)
+            attention_mask = batch.get("attention_mask")
+            if attention_mask is not None:
+                attention_mask = attention_mask.to(device)
 
             if use_amp:
                 with autocast():
-                    loss = compute_loss(model, tokens, mask_token_id, schedule)
+                    loss = compute_loss(
+                        model, tokens, mask_token_id, schedule,
+                        max_mask_ratio=max_mask_ratio,
+                        eos_token_id=eos_token_id,
+                        pad_token_id=pad_token_id,
+                        attention_mask=attention_mask,
+                    )
                     loss = loss / grad_accum
                 scaler.scale(loss).backward()
             else:
-                loss = compute_loss(model, tokens, mask_token_id, schedule)
+                loss = compute_loss(
+                    model, tokens, mask_token_id, schedule,
+                    max_mask_ratio=max_mask_ratio,
+                    eos_token_id=eos_token_id,
+                    pad_token_id=pad_token_id,
+                    attention_mask=attention_mask,
+                )
                 loss = loss / grad_accum
                 loss.backward()
 

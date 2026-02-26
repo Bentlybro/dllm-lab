@@ -48,9 +48,10 @@ class TransformerBlock(nn.Module):
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, key_padding_mask: torch.Tensor = None) -> torch.Tensor:
         # Self-attention (bidirectional - no causal mask!)
-        attn_out, _ = self.attn(x, x, x)
+        # key_padding_mask: True = ignore this position
+        attn_out, _ = self.attn(x, x, x, key_padding_mask=key_padding_mask)
         x = self.norm1(x + self.dropout(attn_out))
         
         # Feed-forward
@@ -64,7 +65,7 @@ class DiffusionLLM(nn.Module):
     
     Architecture:
     - Token embeddings + positional embeddings
-    - Timestep conditioning via adaptive layer norm or addition
+    - Timestep conditioning via addition
     - Stack of bidirectional transformer blocks
     - Output projection to vocab logits
     """
@@ -79,12 +80,14 @@ class DiffusionLLM(nn.Module):
         max_seq_len: int = 512,
         dropout: float = 0.1,
         mask_token_id: int = None,
+        pad_token_id: int = None,
     ):
         super().__init__()
         
         self.vocab_size = vocab_size
         self.d_model = d_model
         self.mask_token_id = mask_token_id if mask_token_id is not None else vocab_size - 1
+        self.pad_token_id = pad_token_id
         
         # Embeddings
         self.token_emb = nn.Embedding(vocab_size, d_model)
@@ -123,9 +126,10 @@ class DiffusionLLM(nn.Module):
     
     def forward(
         self,
-        x: torch.Tensor,           # [batch, seq_len] corrupted tokens
-        t: torch.Tensor,           # [batch] timesteps in [0, 1]
-    ) -> torch.Tensor:             # [batch, seq_len, vocab_size] logits
+        x: torch.Tensor,                    # [batch, seq_len] corrupted tokens
+        t: torch.Tensor,                    # [batch] timesteps in [0, 1]
+        attention_mask: torch.Tensor = None, # [batch, seq_len] 1=attend, 0=ignore
+    ) -> torch.Tensor:                      # [batch, seq_len, vocab_size] logits
         batch, seq_len = x.shape
         device = x.device
         
@@ -139,9 +143,16 @@ class DiffusionLLM(nn.Module):
         
         h = self.dropout(h)
         
+        # Create key_padding_mask for attention (True = ignore)
+        key_padding_mask = None
+        if attention_mask is not None:
+            key_padding_mask = (attention_mask == 0)
+        elif self.pad_token_id is not None:
+            key_padding_mask = (x == self.pad_token_id)
+        
         # Transformer blocks
         for block in self.blocks:
-            h = block(h)
+            h = block(h, key_padding_mask=key_padding_mask)
         
         h = self.norm(h)
         
@@ -149,67 +160,12 @@ class DiffusionLLM(nn.Module):
         logits = self.out_proj(h)
         
         return logits
-    
-    @torch.no_grad()
-    def generate(
-        self,
-        seq_len: int,
-        batch_size: int = 1,
-        steps: int = 50,
-        temperature: float = 1.0,
-        device: str = "cuda",
-    ) -> torch.Tensor:
-        """Generate text using iterative demasking."""
-        
-        # Start with all mask tokens
-        x = torch.full((batch_size, seq_len), self.mask_token_id, device=device)
-        
-        # Iteratively unmask
-        for i, t in enumerate(torch.linspace(1, 0, steps)):
-            t_batch = torch.full((batch_size,), t.item(), device=device)
-            
-            # Get predictions
-            logits = self.forward(x, t_batch)
-            probs = F.softmax(logits / temperature, dim=-1)
-            
-            # Find masked positions
-            is_masked = (x == self.mask_token_id)
-            
-            if not is_masked.any():
-                break
-            
-            # Sample predictions for masked positions
-            sampled = torch.multinomial(
-                probs.view(-1, self.vocab_size), 
-                num_samples=1
-            ).view(batch_size, seq_len)
-            
-            # Get confidence for masked positions
-            confidence = probs.max(dim=-1).values
-            confidence = torch.where(is_masked, confidence, torch.zeros_like(confidence))
-            
-            # Determine how many to unmask this step
-            n_masked = is_masked.sum(dim=-1).float()
-            n_to_unmask = (n_masked * (1 - t) / steps).clamp(min=1).long()
-            
-            # Unmask top-k most confident predictions
-            for b in range(batch_size):
-                if n_to_unmask[b] > 0:
-                    masked_indices = is_masked[b].nonzero().squeeze(-1)
-                    if len(masked_indices) > 0:
-                        conf_at_masked = confidence[b, masked_indices]
-                        k = min(n_to_unmask[b].item(), len(masked_indices))
-                        top_k = conf_at_masked.topk(k).indices
-                        unmask_positions = masked_indices[top_k]
-                        x[b, unmask_positions] = sampled[b, unmask_positions]
-        
-        return x
 
 
 def create_model(config: dict) -> DiffusionLLM:
     """Create model from config dict."""
     return DiffusionLLM(
-        vocab_size=config.get("vocab_size", 50257),  # GPT-2 vocab
+        vocab_size=config.get("vocab_size", 50257),
         d_model=config.get("d_model", 512),
         n_heads=config.get("n_heads", 8),
         n_layers=config.get("n_layers", 6),
@@ -217,4 +173,5 @@ def create_model(config: dict) -> DiffusionLLM:
         max_seq_len=config.get("max_seq_len", 512),
         dropout=config.get("dropout", 0.1),
         mask_token_id=config.get("mask_token_id", None),
+        pad_token_id=config.get("pad_token_id", None),
     )
