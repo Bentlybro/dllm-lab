@@ -78,28 +78,36 @@ class TextDataset(Dataset):
         
         logger.info(f"Loaded {len(self.dataset)} samples")
     
+        # Pre-tokenize the entire dataset (MUCH faster than tokenizing per-batch)
+        logger.info("Pre-tokenizing dataset (this may take a few minutes the first time)...")
+        
+        def tokenize_fn(examples):
+            return self.tokenizer(
+                examples[self.text_column],
+                max_length=self.max_length,
+                truncation=True,
+                padding="max_length",
+            )
+        
+        self.dataset = self.dataset.map(
+            tokenize_fn,
+            batched=True,
+            batch_size=1000,
+            num_proc=4,  # Parallel tokenization
+            remove_columns=self.dataset.column_names,
+            desc="Tokenizing",
+        )
+        self.dataset.set_format(type="torch", columns=["input_ids", "attention_mask"])
+        logger.info("Tokenization complete!")
+    
     def __len__(self) -> int:
         return len(self.dataset)
     
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
-        text = self.dataset[idx][self.text_column]
-        
-        # Handle empty/None text
-        if not text:
-            text = " "
-        
-        # Tokenize with truncation and padding
-        encoded = self.tokenizer(
-            text,
-            max_length=self.max_length,
-            truncation=True,
-            padding="max_length",
-            return_tensors="pt",
-        )
-        
+        item = self.dataset[idx]
         return {
-            "input_ids": encoded["input_ids"].squeeze(0),
-            "attention_mask": encoded["attention_mask"].squeeze(0),
+            "input_ids": item["input_ids"],
+            "attention_mask": item["attention_mask"],
         }
 
 
@@ -121,13 +129,17 @@ def create_dataloader(
         cache_dir=config.get("cache_dir", None),
     )
     
+    num_workers = config.get("num_workers", 4)
+    
     return DataLoader(
         dataset,
         batch_size=config.get("batch_size", 8),
         shuffle=(split == "train"),
-        num_workers=config.get("num_workers", 4),
+        num_workers=num_workers,
         pin_memory=True,
         drop_last=True,
+        persistent_workers=(num_workers > 0),  # Keep workers alive
+        prefetch_factor=4 if num_workers > 0 else None,  # Prefetch batches
     )
 
 

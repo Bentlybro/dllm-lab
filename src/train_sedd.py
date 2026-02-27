@@ -17,6 +17,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
+
+# Enable TF32 for Ampere+ GPUs (20-30% speedup)
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.benchmark = True
 from transformers import GPT2TokenizerFast
 
 # Add parent to path
@@ -122,6 +127,12 @@ def train(config_path: str, resume: str = None):
     # Create model
     model = create_model(config["model"]).to(device)
     logger.info(f"Model parameters: {count_parameters(model):,}")
+    
+    # Compile model for faster training (PyTorch 2.0+)
+    if config["training"].get("compile", True) and hasattr(torch, "compile"):
+        logger.info("Compiling model with torch.compile()...")
+        model = torch.compile(model, mode="reduce-overhead")
+        logger.info("Model compiled!")
     
     # Create SEDD diffusion
     diffusion = SEDDDiffusion(
