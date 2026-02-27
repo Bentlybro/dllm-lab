@@ -229,6 +229,12 @@ def train(config_path: str, resume: str = None):
     max_nan_streak = 10  # halt if 10 NaNs in a row
     last_loss = 0.0  # Track last loss for final save
     
+    # Stats tracking
+    import time
+    tokens_per_batch = config["training"]["batch_size"] * config["data"]["max_length"]
+    start_time = time.time()
+    tokens_seen = 0
+    
     pbar = tqdm(total=total_steps, initial=start_step, desc=f"Epoch {epoch+1}")
     
     while step < total_steps:
@@ -301,9 +307,14 @@ def train(config_path: str, resume: str = None):
                 scheduler.step()
             
             step += 1
+            tokens_seen += tokens_per_batch
+            elapsed = time.time() - start_time
+            tokens_per_sec = tokens_seen / elapsed if elapsed > 0 else 0
+            
             pbar.update(1)
             pbar.set_postfix({
                 "loss": f"{running_loss / max(1, step - start_step):.4f}",
+                "tok/s": f"{tokens_per_sec/1000:.1f}k",
                 "lr": f"{scheduler.get_last_lr()[0]:.2e}",
             })
             
@@ -311,8 +322,10 @@ def train(config_path: str, resume: str = None):
             if step % log_every == 0:
                 avg_loss = running_loss * grad_accum / log_every
                 lr = scheduler.get_last_lr()[0]
+                elapsed = time.time() - start_time
+                tps = tokens_seen / elapsed if elapsed > 0 else 0
                 
-                log_msg = f"Step {step} | Loss: {avg_loss:.4f} | LR: {lr:.2e}"
+                log_msg = f"Step {step} | Loss: {avg_loss:.4f} | {tps/1000:.1f}k tok/s | LR: {lr:.2e}"
                 if running_metrics:
                     for k, v in running_metrics.items():
                         log_msg += f" | {k}: {v/log_every:.4f}"
