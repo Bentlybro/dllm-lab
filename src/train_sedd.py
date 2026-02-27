@@ -15,7 +15,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
+from torch.amp import autocast, GradScaler
 from tqdm import tqdm
 
 # Enable TF32 for Ampere+ GPUs (20-30% speedup)
@@ -128,11 +128,9 @@ def train(config_path: str, resume: str = None):
     model = create_model(config["model"]).to(device)
     logger.info(f"Model parameters: {count_parameters(model):,}")
     
-    # Compile model for faster training (PyTorch 2.0+)
-    if config["training"].get("compile", True) and hasattr(torch, "compile"):
-        logger.info("Compiling model with torch.compile()...")
-        model = torch.compile(model, mode="reduce-overhead")
-        logger.info("Model compiled!")
+    # NOTE: torch.compile is called AFTER loading checkpoint (see below)
+    # This avoids _orig_mod. prefix mismatch when resuming
+    should_compile = config["training"].get("compile", True) and hasattr(torch, "compile")
     
     # Create SEDD diffusion
     diffusion = SEDDDiffusion(
@@ -183,13 +181,13 @@ def train(config_path: str, resume: str = None):
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
     
     # Mixed precision
-    scaler = GradScaler(enabled=config["training"].get("mixed_precision", True))
+    scaler = GradScaler('cuda', enabled=config["training"].get("mixed_precision", True))
     
-    # Resume if specified
+    # Resume if specified (BEFORE compiling to avoid key mismatch)
     start_step = 0
     if resume:
         logger.info(f"Resuming from {resume}")
-        ckpt = torch.load(resume, map_location=device)
+        ckpt = torch.load(resume, map_location=device, weights_only=False)
         model.load_state_dict(ckpt["model_state_dict"])
         optimizer.load_state_dict(ckpt["optimizer_state_dict"])
         if ckpt["scheduler_state_dict"]:
@@ -197,6 +195,12 @@ def train(config_path: str, resume: str = None):
         scaler.load_state_dict(ckpt["scaler_state_dict"])
         start_step = ckpt["step"]
         logger.info(f"Resumed at step {start_step}")
+    
+    # Compile model AFTER loading checkpoint (avoids _orig_mod. prefix issues)
+    if should_compile:
+        logger.info("Compiling model with torch.compile()...")
+        model = torch.compile(model, mode="reduce-overhead")
+        logger.info("Model compiled!")
     
     # Training config
     grad_accum = config["training"].get("gradient_accumulation_steps", 1)
@@ -228,7 +232,7 @@ def train(config_path: str, resume: str = None):
                 attention_mask = attention_mask.to(device)
             
             # Forward pass with mixed precision
-            with autocast(enabled=config["training"].get("mixed_precision", True)):
+            with autocast('cuda', enabled=config["training"].get("mixed_precision", True)):
                 if use_loss_fn:
                     loss, metrics = loss_fn(
                         model, tokens,
