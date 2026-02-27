@@ -1,0 +1,36 @@
+# SEDD TinyShakespeare - Sanity check config
+# Cleanest possible dataset for debugging
+
+output_dir: checkpoints/sedd_shakespeare
+
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers: 8
+  d_ff: 2048
+  max_seq_len: 256
+  dropout: 0.1
+
+diffusion:
+  schedule: log_linear
+  entropy_weight: 0.01
+
+data:
+  dataset: tiny_shakespeare
+  max_length: 256
+  num_workers: 4
+  split: train
+
+training:
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  lr: 0.0001
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  max_steps: 20000
+  warmup_steps: 500
+  max_grad_norm: 1.0
+  mixed_precision: false
+  compile: false
+  log_every: 100
+  save_every: 2000
