@@ -31,7 +31,7 @@ training:
   max_steps: 50000    # ~25+ epochs on wikitext-2
   warmup_steps: 1000
   max_grad_norm: 1.0
-  mixed_precision: true
+  mixed_precision: false  # Test: disable AMP to debug NaN
   compile: false
   log_every: 100
   save_every: 5000
