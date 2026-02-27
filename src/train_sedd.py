@@ -12,6 +12,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+# Silence noisy HuggingFace/httpx logs BEFORE importing transformers
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+logging.getLogger("datasets").setLevel(logging.WARNING)
+
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -207,6 +214,11 @@ def train(config_path: str, resume: str = None):
     log_every = config["training"].get("log_every", 100)
     save_every = config["training"].get("save_every", 5000)
     
+    # Check if training is already done
+    if start_step >= total_steps:
+        logger.info(f"Training already complete (step {start_step} >= {total_steps}). Nothing to do.")
+        return
+    
     # Training loop
     model.train()
     step = start_step
@@ -215,6 +227,7 @@ def train(config_path: str, resume: str = None):
     running_metrics = {}
     nan_count = 0
     max_nan_streak = 10  # halt if 10 NaNs in a row
+    last_loss = 0.0  # Track last loss for final save
     
     pbar = tqdm(total=total_steps, initial=start_step, desc=f"Epoch {epoch+1}")
     
@@ -269,6 +282,7 @@ def train(config_path: str, resume: str = None):
                 continue  # skip this batch entirely
             
             nan_count = 0  # reset streak on good batch
+            last_loss = loss.item() * grad_accum  # track for final save
             
             # Backward
             scaler.scale(loss).backward()
@@ -333,10 +347,10 @@ def train(config_path: str, resume: str = None):
     # Final save
     save_checkpoint(
         model, optimizer, scheduler, scaler,
-        step, loss.item() * grad_accum, config,
+        step, last_loss, config,
         output_dir, "final"
     )
-    logger.info(f"Training complete! Final model saved to {output_dir}/final.pt")
+    logger.info(f"Training complete! Final model saved to {output_dir}/final.pt (step {step}, loss {last_loss:.4f})")
 
 
 if __name__ == "__main__":
