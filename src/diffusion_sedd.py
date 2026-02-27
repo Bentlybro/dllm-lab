@@ -356,8 +356,19 @@ class SEDDLossWithEntropy(nn.Module):
         
         # Entropy regularization (on masked positions only)
         if is_masked_flat.sum() > 0:
-            probs = F.softmax(logits_flat[is_masked_flat], dim=-1)
+            masked_logits = logits_flat[is_masked_flat]
+            probs = F.softmax(masked_logits, dim=-1)
             entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1).mean()
+            
+            # Debug NaN sources
+            if torch.isnan(score_loss) or torch.isnan(entropy):
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"NaN debug: score_loss={score_loss.item() if not torch.isnan(score_loss) else 'NaN'}, "
+                             f"entropy={entropy.item() if not torch.isnan(entropy) else 'NaN'}, "
+                             f"n_masked={is_masked_flat.sum().item()}, "
+                             f"logits_has_nan={torch.isnan(logits).any().item()}, "
+                             f"ce_has_nan={torch.isnan(ce_loss).any().item()}")
         else:
             entropy = torch.tensor(0.0, device=device)
         
