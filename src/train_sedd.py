@@ -303,15 +303,21 @@ def train(config_path: str, resume: str = None):
             if (step + 1) % grad_accum == 0:
                 scaler.unscale_(optimizer)
                 
-                # Debug: log gradient norm before clipping
+                # Check gradient norm before clipping
                 total_norm = torch.nn.utils.clip_grad_norm_(
                     model.parameters(),
                     config["training"].get("max_grad_norm", 1.0)
                 )
                 
-                # Warn if gradient norm was very high before clipping
-                if total_norm > 10.0:
-                    logger.warning(f"Step {step+1}: grad_norm={total_norm:.2f} (high!)")
+                # Skip update if gradients are inf/nan (would corrupt weights)
+                if not torch.isfinite(total_norm):
+                    logger.warning(f"Step {step+1}: skipping update (grad_norm=inf)")
+                    optimizer.zero_grad()
+                    scaler.update()  # Still update scaler to adjust scale factor
+                    scheduler.step()
+                    step += 1
+                    pbar.update(1)
+                    continue
                 
                 scaler.step(optimizer)
                 scaler.update()
