@@ -27,9 +27,10 @@ training:
   lr: 0.0001
   weight_decay: 0.01
   betas: [0.9, 0.98]
-  max_steps: 200000
+  max_steps: 500000
   warmup_steps: 4000
   max_grad_norm: 1.0
   mixed_precision: true
+  compile: false  # Triton doesn't work on Windows
   log_every: 100
   save_every: 2000
