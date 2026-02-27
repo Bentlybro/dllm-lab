@@ -139,10 +139,21 @@ class DiffusionLLM(nn.Module):
         
         # Token + position embeddings
         pos = torch.arange(seq_len, device=device)
-        h = self.token_emb(x) + self.pos_emb(pos)
+        tok_emb = self.token_emb(x)
+        pos_emb_out = self.pos_emb(pos)
         
-        if torch.isnan(h).any():
-            raise ValueError("NaN after embeddings")
+        # Debug: check each embedding separately
+        if torch.isnan(tok_emb).any():
+            # Check if the weights themselves are NaN
+            weight_nan = torch.isnan(self.token_emb.weight).any()
+            raise ValueError(f"NaN in token embedding output! weight_nan={weight_nan}, "
+                           f"x range: [{x.min()}, {x.max()}]")
+        
+        if torch.isnan(pos_emb_out).any():
+            weight_nan = torch.isnan(self.pos_emb.weight).any()
+            raise ValueError(f"NaN in position embedding! weight_nan={weight_nan}")
+        
+        h = tok_emb + pos_emb_out
         
         # Add timestep embedding (broadcast to all positions)
         t_emb = self.time_emb(t)  # [batch, d_model]
