@@ -13,7 +13,7 @@ model:
 
 diffusion:
   schedule: log_linear
-  entropy_weight: 0.01
+  entropy_weight: 0.0   # Disabled - might be causing instability
 
 data:
   dataset: openwebtext
@@ -25,13 +25,13 @@ data:
 training:
   batch_size: 16
   gradient_accumulation_steps: 1
-  lr: 0.00005        # Lowered from 1e-4 to 5e-5 (more stable)
+  lr: 0.00003        # Even lower (3e-5)
   weight_decay: 0.01
-  betas: [0.9, 0.98]
-  max_steps: 30000   # ~10 epochs on 50k samples
-  warmup_steps: 1000  # Longer warmup
-  max_grad_norm: 0.5  # Tighter gradient clipping
-  mixed_precision: true
+  betas: [0.9, 0.99]  # Higher beta2 for more stable Adam
+  max_steps: 30000   
+  warmup_steps: 2000  # Even longer warmup
+  max_grad_norm: 0.1  # Very tight gradient clipping
+  mixed_precision: false  # Disable AMP for stability
   compile: false
   log_every: 100
   save_every: 5000

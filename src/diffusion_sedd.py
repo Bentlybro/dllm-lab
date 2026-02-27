@@ -151,7 +151,7 @@ class SEDDDiffusion:
         weight = self.sigma(t)  # [batch]
         
         # Clamp weights to avoid explosion
-        weight = torch.clamp(weight, max=10.0)
+        weight = torch.clamp(weight, max=5.0)  # Reduced from 10 for stability
         
         # Flatten for loss
         logits_flat = logits.view(-1, self.vocab_size)  # [batch*seq, vocab]
@@ -343,7 +343,7 @@ class SEDDLossWithEntropy(nn.Module):
         logits = model(xt, t, attention_mask=attention_mask)
         
         # Score matching loss (cross-entropy on masked positions)
-        weight = torch.clamp(self.diffusion.sigma(t), max=10.0)
+        weight = torch.clamp(self.diffusion.sigma(t), max=5.0)  # Reduced for stability
         
         logits_flat = logits.view(-1, self.diffusion.vocab_size)
         targets_flat = x0.view(-1)
