@@ -148,10 +148,12 @@ class SEDDDiffusion:
         
         # Compute importance weight: σ(t)
         # Higher weight for larger t (when more is masked and prediction is harder)
+        # NOTE: σ(t) = 1/(1-t) explodes as t→1, causing gradient explosion
         weight = self.sigma(t)  # [batch]
         
-        # Clamp weights to avoid explosion
-        weight = torch.clamp(weight, max=5.0)  # Reduced from 10 for stability
+        # Clamp weights more aggressively for numerical stability
+        # Even weight=5 causes gradient explosion with vocab 50k
+        weight = torch.clamp(weight, min=0.1, max=1.0)  # Much tighter clamp
         
         # Flatten for loss
         logits_flat = logits.view(-1, self.vocab_size)  # [batch*seq, vocab]
