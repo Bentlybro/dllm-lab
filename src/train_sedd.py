@@ -17,6 +17,11 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 from tqdm import tqdm
+
+# Enable TF32 for Ampere+ GPUs (20-30% speedup)
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+torch.backends.cudnn.benchmark = True
 from transformers import GPT2TokenizerFast
 
 # Add parent to path
