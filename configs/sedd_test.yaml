@@ -25,12 +25,12 @@ data:
 training:
   batch_size: 16
   gradient_accumulation_steps: 1
-  lr: 0.0001
+  lr: 0.00005        # Lowered from 1e-4 to 5e-5 (more stable)
   weight_decay: 0.01
   betas: [0.9, 0.98]
   max_steps: 30000   # ~10 epochs on 50k samples
-  warmup_steps: 500
-  max_grad_norm: 1.0
+  warmup_steps: 1000  # Longer warmup
+  max_grad_norm: 0.5  # Tighter gradient clipping
   mixed_precision: true
   compile: false
   log_every: 100
