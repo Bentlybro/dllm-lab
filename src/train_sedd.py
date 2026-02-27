@@ -272,12 +272,7 @@ def train(config_path: str, resume: str = None):
             # NaN detection - skip batch and reset gradients
             if torch.isnan(loss) or torch.isinf(loss):
                 nan_count += 1
-                # Debug info for first few NaNs
-                if nan_count <= 3:
-                    non_pad = (tokens != pad_token_id).sum().item() if pad_token_id else tokens.numel()
-                    logger.warning(f"Step {step} | NaN/Inf loss! non_pad_tokens={non_pad}, batch_shape={tokens.shape}, streak={nan_count}")
-                else:
-                    logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
+                logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
                 optimizer.zero_grad()
                 # Don't call scaler.update() here - we haven't scaled anything
                 
@@ -302,23 +297,10 @@ def train(config_path: str, resume: str = None):
             # Optimizer step
             if (step + 1) % grad_accum == 0:
                 scaler.unscale_(optimizer)
-                
-                # Check gradient norm before clipping
-                total_norm = torch.nn.utils.clip_grad_norm_(
+                torch.nn.utils.clip_grad_norm_(
                     model.parameters(),
                     config["training"].get("max_grad_norm", 1.0)
                 )
-                
-                # Skip update if gradients are inf/nan (would corrupt weights)
-                if not torch.isfinite(total_norm):
-                    logger.warning(f"Step {step+1}: skipping update (grad_norm=inf)")
-                    optimizer.zero_grad()
-                    scaler.update()  # Still update scaler to adjust scale factor
-                    scheduler.step()
-                    step += 1
-                    pbar.update(1)
-                    continue
-                
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()

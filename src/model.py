@@ -133,35 +133,14 @@ class DiffusionLLM(nn.Module):
         batch, seq_len = x.shape
         device = x.device
         
-        # Check input validity
-        if x.max() >= self.vocab_size:
-            raise ValueError(f"Token id {x.max().item()} >= vocab_size {self.vocab_size}")
-        
         # Token + position embeddings
         pos = torch.arange(seq_len, device=device)
-        tok_emb = self.token_emb(x)
-        pos_emb_out = self.pos_emb(pos)
-        
-        # Debug: check each embedding separately
-        if torch.isnan(tok_emb).any():
-            # Check if the weights themselves are NaN
-            weight_nan = torch.isnan(self.token_emb.weight).any()
-            raise ValueError(f"NaN in token embedding output! weight_nan={weight_nan}, "
-                           f"x range: [{x.min()}, {x.max()}]")
-        
-        if torch.isnan(pos_emb_out).any():
-            weight_nan = torch.isnan(self.pos_emb.weight).any()
-            raise ValueError(f"NaN in position embedding! weight_nan={weight_nan}")
-        
-        h = tok_emb + pos_emb_out
+        h = self.token_emb(x) + self.pos_emb(pos)
         
         # Add timestep embedding (broadcast to all positions)
         t_emb = self.time_emb(t)  # [batch, d_model]
-        
-        if torch.isnan(t_emb).any():
-            raise ValueError(f"NaN in time embedding, t values: min={t.min()}, max={t.max()}")
-        
         h = h + t_emb.unsqueeze(1)
+        
         h = self.dropout(h)
         
         # Create key_padding_mask for attention (True = ignore)
@@ -172,15 +151,10 @@ class DiffusionLLM(nn.Module):
             key_padding_mask = (x == self.pad_token_id)
         
         # Transformer blocks
-        for i, block in enumerate(self.blocks):
+        for block in self.blocks:
             h = block(h, key_padding_mask=key_padding_mask)
-            if torch.isnan(h).any():
-                raise ValueError(f"NaN after transformer block {i}")
         
         h = self.norm(h)
-        
-        if torch.isnan(h).any():
-            raise ValueError("NaN after final norm")
         
         # Project to vocab
         logits = self.out_proj(h)

@@ -146,14 +146,11 @@ class SEDDDiffusion:
         # Get model predictions (scores / logits)
         logits = model(xt, t, attention_mask=attention_mask)  # [batch, seq, vocab]
         
-        # Compute importance weight: σ(t)
-        # Higher weight for larger t (when more is masked and prediction is harder)
-        # NOTE: σ(t) = 1/(1-t) explodes as t→1, causing gradient explosion
-        weight = self.sigma(t)  # [batch]
-        
-        # Clamp weights more aggressively for numerical stability
-        # Even weight=5 causes gradient explosion with vocab 50k
-        weight = torch.clamp(weight, min=0.1, max=1.0)  # Much tighter clamp
+        # Importance weighting disabled for numerical stability
+        # The original SEDD uses σ(t) weighting, but this causes gradient explosion
+        # since σ(t) = 1/(1-t) → ∞ as t → 1
+        # Using uniform weighting for now - less theoretically correct but stable
+        weight = torch.ones_like(t)
         
         # Flatten for loss
         logits_flat = logits.view(-1, self.vocab_size)  # [batch*seq, vocab]
@@ -345,7 +342,7 @@ class SEDDLossWithEntropy(nn.Module):
         logits = model(xt, t, attention_mask=attention_mask)
         
         # Score matching loss (cross-entropy on masked positions)
-        weight = torch.clamp(self.diffusion.sigma(t), max=5.0)  # Reduced for stability
+        weight = torch.clamp(self.diffusion.sigma(t), max=10.0)
         
         logits_flat = logits.view(-1, self.diffusion.vocab_size)
         targets_flat = x0.view(-1)
@@ -358,19 +355,8 @@ class SEDDLossWithEntropy(nn.Module):
         
         # Entropy regularization (on masked positions only)
         if is_masked_flat.sum() > 0:
-            masked_logits = logits_flat[is_masked_flat]
-            probs = F.softmax(masked_logits, dim=-1)
+            probs = F.softmax(logits_flat[is_masked_flat], dim=-1)
             entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1).mean()
-            
-            # Debug NaN sources
-            if torch.isnan(score_loss) or torch.isnan(entropy):
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"NaN debug: score_loss={score_loss.item() if not torch.isnan(score_loss) else 'NaN'}, "
-                             f"entropy={entropy.item() if not torch.isnan(entropy) else 'NaN'}, "
-                             f"n_masked={is_masked_flat.sum().item()}, "
-                             f"logits_has_nan={torch.isnan(logits).any().item()}, "
-                             f"ce_has_nan={torch.isnan(ce_loss).any().item()}")
         else:
             entropy = torch.tensor(0.0, device=device)
         
