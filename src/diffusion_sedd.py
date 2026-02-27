@@ -355,8 +355,11 @@ class SEDDLossWithEntropy(nn.Module):
         score_loss = masked_loss.sum() / (is_masked_flat.sum() + 1e-8)
         
         # Entropy regularization (on masked positions only)
-        probs = F.softmax(logits_flat[is_masked_flat], dim=-1)
-        entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1).mean()
+        if is_masked_flat.sum() > 0:
+            probs = F.softmax(logits_flat[is_masked_flat], dim=-1)
+            entropy = -(probs * torch.log(probs + 1e-8)).sum(dim=-1).mean()
+        else:
+            entropy = torch.tensor(0.0, device=device)
         
         # Total loss
         total_loss = score_loss - self.entropy_weight * entropy

@@ -274,7 +274,7 @@ def train(config_path: str, resume: str = None):
                 nan_count += 1
                 logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
                 optimizer.zero_grad()
-                scaler.update()  # reset scaler state
+                # Don't call scaler.update() here - we haven't scaled anything
                 
                 if nan_count >= max_nan_streak:
                     logger.error(f"Hit {max_nan_streak} NaN losses in a row. Saving emergency checkpoint and halting.")
