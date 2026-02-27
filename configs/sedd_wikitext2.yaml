@@ -1,0 +1,37 @@
+# SEDD WikiText-2 Test Config
+# Fast iteration for testing - many epochs in ~1-2 hours
+
+output_dir: checkpoints/sedd_wikitext2
+
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers: 8
+  d_ff: 2048
+  max_seq_len: 256
+  dropout: 0.1
+
+diffusion:
+  schedule: log_linear
+  entropy_weight: 0.01
+
+data:
+  dataset: wikitext
+  subset: wikitext-2-raw-v1
+  max_length: 256
+  num_workers: 4
+  split: train
+
+training:
+  batch_size: 16
+  gradient_accumulation_steps: 1
+  lr: 0.0001
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  max_steps: 50000    # ~25+ epochs on wikitext-2
+  warmup_steps: 1000
+  max_grad_norm: 1.0
+  mixed_precision: true
+  compile: false
+  log_every: 100
+  save_every: 5000
