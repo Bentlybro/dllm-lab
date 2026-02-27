@@ -272,7 +272,12 @@ def train(config_path: str, resume: str = None):
             # NaN detection - skip batch and reset gradients
             if torch.isnan(loss) or torch.isinf(loss):
                 nan_count += 1
-                logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
+                # Debug info for first few NaNs
+                if nan_count <= 3:
+                    non_pad = (tokens != pad_token_id).sum().item() if pad_token_id else tokens.numel()
+                    logger.warning(f"Step {step} | NaN/Inf loss! non_pad_tokens={non_pad}, batch_shape={tokens.shape}, streak={nan_count}")
+                else:
+                    logger.warning(f"Step {step} | NaN/Inf loss detected! Skipping batch. (streak: {nan_count})")
                 optimizer.zero_grad()
                 # Don't call scaler.update() here - we haven't scaled anything
                 
