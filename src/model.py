@@ -133,14 +133,24 @@ class DiffusionLLM(nn.Module):
         batch, seq_len = x.shape
         device = x.device
         
+        # Check input validity
+        if x.max() >= self.vocab_size:
+            raise ValueError(f"Token id {x.max().item()} >= vocab_size {self.vocab_size}")
+        
         # Token + position embeddings
         pos = torch.arange(seq_len, device=device)
         h = self.token_emb(x) + self.pos_emb(pos)
         
+        if torch.isnan(h).any():
+            raise ValueError("NaN after embeddings")
+        
         # Add timestep embedding (broadcast to all positions)
         t_emb = self.time_emb(t)  # [batch, d_model]
-        h = h + t_emb.unsqueeze(1)
         
+        if torch.isnan(t_emb).any():
+            raise ValueError(f"NaN in time embedding, t values: min={t.min()}, max={t.max()}")
+        
+        h = h + t_emb.unsqueeze(1)
         h = self.dropout(h)
         
         # Create key_padding_mask for attention (True = ignore)
@@ -151,10 +161,15 @@ class DiffusionLLM(nn.Module):
             key_padding_mask = (x == self.pad_token_id)
         
         # Transformer blocks
-        for block in self.blocks:
+        for i, block in enumerate(self.blocks):
             h = block(h, key_padding_mask=key_padding_mask)
+            if torch.isnan(h).any():
+                raise ValueError(f"NaN after transformer block {i}")
         
         h = self.norm(h)
+        
+        if torch.isnan(h).any():
+            raise ValueError("NaN after final norm")
         
         # Project to vocab
         logits = self.out_proj(h)
